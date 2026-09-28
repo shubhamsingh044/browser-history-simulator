@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>StackFlow — Browser History Simulator</title>
+<style>
+:root{
+  --bg:#f5f8f7; --panel:#ffffff; --line:#dde5e2; --text:#1c2620; --sub:#5f6b66;
+  --mono:#3a4842; --back:#0d9488; --back-bg:#e3f6f3; --fwd:#d97706; --fwd-bg:#fff3e0;
+  --ok:#16a34a; --ok-bg:#e9fbef; --amber:#d97706; --amber-bg:#fff3e0; --red:#dc2626;
+  --shadow:0 1px 3px rgba(20,30,60,.06), 0 8px 24px rgba(20,30,60,.05);
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Arial,sans-serif;}
+.mono{font-family:'JetBrains Mono',Consolas,monospace;}
+header{position:sticky;top:0;z-index:10;background:rgba(255,255,255,.9);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:12px 20px env(safe-area-inset-top,0px) 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.brand{display:flex;flex-direction:column;line-height:1.1}
+.brand b{font-size:18px;letter-spacing:.5px}
+.brand span{font-size:11px;color:var(--sub)}
+nav{display:flex;gap:4px;flex-wrap:wrap}
+nav button{background:none;border:1px solid transparent;color:var(--sub);font-size:13px;padding:6px 10px;border-radius:8px;cursor:pointer}
+nav button.active{background:var(--back-bg);color:var(--back);font-weight:600}
+.live{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ok);font-weight:700}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--ok);animation:pulse 1.4s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+main{max-width:1300px;margin:0 auto;padding:18px 16px 60px}
+.section{display:none}
+.section.active{display:block}
+h2.title{font-size:12px;letter-spacing:1.5px;color:var(--sub);margin:0 0 10px;font-weight:700}
+.grid{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:14px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:var(--shadow)}
+.browser-bar{display:flex;align-items:center;gap:6px;margin-bottom:10px}
+.nbtn{width:30px;height:30px;border-radius:8px;border:1px solid var(--line);background:#fafbfd;cursor:pointer;font-size:14px;color:var(--text)}
+.nbtn:disabled{opacity:.3;cursor:not-allowed}
+.addr{flex:1;background:#f1f3f8;border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:12px;color:var(--sub)}
+.addr b{color:var(--ok)}
+.page{border:1px solid var(--line);border-radius:10px;height:280px;padding:16px;background:#fff;overflow:hidden;transition:opacity .25s}
+.page h3{margin:0 0 8px;font-size:20px}
+.pill{display:inline-block;background:var(--back-bg);color:var(--back);border-radius:20px;padding:3px 10px;font-size:11px;margin-right:4px}
+.quicknav{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.quicknav button{border:1px solid var(--line);background:#fafbfd;border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer}
+.quicknav button:hover{border-color:var(--back)}
+.pipeline{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;color:var(--sub);margin:8px 0}
+.pipe-step{background:#f7f8fb;border:1px solid var(--line);border-radius:8px;padding:6px 10px;width:100%;text-align:center}
+.pipe-step.hit{background:var(--amber-bg);border-color:var(--amber);color:var(--amber);font-weight:700}
+.arrow{color:var(--sub)}
+.monitor{background:#0f1320;color:#c9d3f0;border-radius:10px;padding:12px;font-size:12px;line-height:1.7;margin-top:10px}
+.monitor .k{color:#7b88b8}
+.monitor .v{color:#e9edfb;font-weight:600}
+.status-ok{color:#4ade80}
+.stackbox h4{margin:0 0 8px;font-size:12px;letter-spacing:1px;color:var(--sub);display:flex;justify-content:space-between}
+.stackwrap{min-height:210px;display:flex;flex-direction:column-reverse;gap:6px;justify-content:flex-start}
+.card{border-radius:9px;padding:8px 10px;font-size:12px;border:1px solid;animation:pop .28s ease}
+@keyframes pop{from{transform:scale(.85);opacity:0}to{transform:scale(1);opacity:1}}
+.card.back{background:var(--back-bg);border-color:#c7d9ff;color:var(--back)}
+.card.fwd{background:var(--fwd-bg);border-color:#ded0fb;color:var(--fwd)}
+.card small{display:block;color:var(--sub);font-weight:400}
+.empty{color:var(--sub);font-size:12px;text-align:center;padding:20px 0;border:1px dashed var(--line);border-radius:8px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
+.toolbar button{border:1px solid var(--line);background:var(--panel);padding:8px 14px;border-radius:9px;font-size:13px;cursor:pointer;box-shadow:var(--shadow)}
+.toolbar button.primary{background:var(--back);color:#fff;border-color:var(--back)}
+.toolbar button.danger{color:var(--red);border-color:#f3caca}
+.log{background:#0f1320;color:#9be89b;border-radius:10px;padding:10px 12px;font-size:11.5px;height:130px;overflow-y:auto;margin-top:14px}
+.notice{background:var(--amber-bg);color:var(--amber);border:1px solid #f3d9a3;border-radius:8px;padding:8px 12px;font-size:12px;margin-top:10px;display:none}
+table{width:100%;border-collapse:collapse;font-size:13px}
+td,th{border:1px solid var(--line);padding:8px 12px;text-align:left}
+th{background:#f7f8fb}
+.viva-item{border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin-bottom:8px;background:var(--panel)}
+.viva-item summary{cursor:pointer;font-weight:600;font-size:13.5px}
+.viva-item p{color:var(--sub);font-size:13px;margin:8px 0 0}
+.arch{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px;color:var(--sub);margin:14px 0}
+.arch .box{border:1px solid var(--line);background:var(--panel);border-radius:9px;padding:8px 16px;font-weight:600;color:var(--text)}
+.arch .row{display:flex;gap:40px}
+footer{text-align:center;font-size:11px;color:var(--sub);margin-top:40px;padding-top:14px;border-top:1px solid var(--line)}
+@media(max-width:900px){.grid{grid-template-columns:1fr}.arch .row{gap:14px}}
+.tabbar{display:flex;gap:4px;margin-bottom:8px;align-items:flex-end}
+.tab{display:flex;align-items:center;gap:6px;background:#eef1f0;border:1px solid var(--line);border-bottom:none;border-radius:8px 8px 0 0;padding:6px 12px;font-size:12px;color:var(--sub)}
+.tab.active{background:#fff;color:var(--text);font-weight:600}
+.tab .x{color:var(--sub);margin-left:4px}
+.tab.ghost{opacity:.5}
+.tabnew{padding:6px 10px;color:var(--sub);font-size:14px}
+.flyer{position:fixed;z-index:999;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:700;pointer-events:none;box-shadow:var(--shadow);transition:transform .55s cubic-bezier(.3,.6,.3,1),opacity .55s ease}
+.flyer.back{background:var(--back-bg);color:var(--back);border:1px solid var(--back)}
+.flyer.fwd{background:var(--fwd-bg);color:var(--fwd);border:1px solid var(--fwd)}
+.step-item{border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin-bottom:6px;background:var(--panel);color:var(--sub);font-size:13px}
+.step-item.current{border-color:var(--back);background:var(--back-bg);color:var(--back);font-weight:700}
+.overlay{position:fixed;inset:0;background:rgba(20,30,25,.85);z-index:100;display:none;align-items:center;justify-content:center;padding:20px}
+.overlay.active{display:flex}
+.slide{background:#fff;border-radius:16px;padding:36px 44px;max-width:640px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.slide .num{font-size:11px;color:var(--sub);letter-spacing:2px;margin-bottom:8px}
+.slide h2{margin:0 0 14px;font-size:24px}
+.slide p{color:var(--sub);font-size:14.5px;line-height:1.6}
+.slide-nav{display:flex;justify-content:space-between;margin-top:22px}
+.slide-nav button{border:1px solid var(--line);background:#fafbfd;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><b>STACKFLOW</b><span>Browser History Simulator</span></div>
+  <nav id="nav">
+    <button data-s="sim" class="active">Simulator</button>
+    <button data-s="lab">Stack Lab</button>
+    <button data-s="code">Code</button>
+    <button data-s="ops">Operations</button>
+    <button data-s="stepmode">Step Mode</button>
+    <button data-s="complexity">Complexity</button>
+    <button data-s="viva">Viva</button>
+  </nav>
+  <div style="display:flex;align-items:center;gap:12px">
+    <button id="presentBtn" style="border:1px solid var(--line);background:var(--panel);padding:6px 12px;border-radius:8px;font-size:12px;cursor:pointer">▶ Presentation</button>
+    <div class="live"><span class="dot"></span>LIVE</div>
+  </div>
+</header>
+
+<main>
+<section id="sim" class="section active">
+  <div class="grid">
+    <div class="panel">
+      <div class="tabbar" id="tabbar"></div>
+      <div class="browser-bar">
+        <button class="nbtn" id="btnBack">←</button>
+        <button class="nbtn" id="btnFwd">→</button>
+        <button class="nbtn" id="btnRefresh">⟳</button>
+        <div class="addr"><b>🔒</b> <span id="addr">wikipedia.local</span></div>
+      </div>
+      <div class="page" id="pageView"></div>
+      <div class="quicknav" id="quicknav"></div>
+      <div class="notice" id="notice">New navigation clears Forward Stack</div>
+    </div>
+
+    <div class="panel">
+      <h2 class="title">STACK ENGINE</h2>
+      <div class="pipeline" id="pipeline"></div>
+      <div class="monitor" id="monitor"></div>
+    </div>
+
+    <div class="panel">
+      <div class="stackbox">
+        <h4>BACK STACK <span id="backCount">03</span></h4>
+        <div class="stackwrap" id="backStack"></div>
+      </div>
+      <div class="stackbox" style="margin-top:16px">
+        <h4>FORWARD STACK <span id="fwdCount">00</span></h4>
+        <div class="stackwrap" id="fwdStack"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <button class="primary" id="runDemo">▶ Run Demo</button>
+    <button id="edgeTest">⚠ Test isEmpty()</button>
+    <button class="danger" id="resetBtn">Reset</button>
+    <span style="align-self:center;font-size:12px;color:var(--sub);margin-left:auto">Total Operations: <b id="opCount" style="color:var(--text)">0</b> · each O(1)</span>
+  </div>
+  <div class="log" id="log"></div>
+</section>
+
+<section id="code" class="section">
+  <h2 class="title">IMPLEMENTATION — TWO STACK ARCHITECTURE</h2>
+  <pre style="background:#0f1320;color:#c9d3f0;border-radius:12px;padding:18px;font-size:12.5px;overflow-x:auto;line-height:1.6" class="mono">class Stack&lt;T&gt; {
+  private List&lt;T&gt; data = new ArrayList&lt;&gt;();
+  void push(T item) { data.add(item); }            // O(1)
+  T pop() { return data.remove(data.size()-1); }   // O(1)
+  T peek() { return data.get(data.size()-1); }     // O(1)
+  boolean isEmpty() { return data.isEmpty(); }     // O(1)
+  int size() { return data.size(); }               // O(1)
+}
+
+class BrowserHistory {
+  Stack&lt;String&gt; backStack = new Stack&lt;&gt;();
+  Stack&lt;String&gt; forwardStack = new Stack&lt;&gt;();
+  String current;
+
+  void visit(String page) {
+    backStack.push(current);
+    forwardStack.clear();      // new path invalidates forward history
+    current = page;
+  }
+
+  String back() {
+    if (backStack.isEmpty()) return current;   // edge case
+    forwardStack.push(current);
+    current = backStack.pop();
+    return current;
+  }
+
+  String forward() {
+    if (forwardStack.isEmpty()) return current; // edge case
+    backStack.push(current);
+    current = forwardStack.pop();
+    return current;
+  }
+}</pre>
+  <p style="color:var(--sub);font-size:13px;margin-top:10px">Yehi logic exactly is Artifact ke JavaScript layer me implement kiya gaya hai — <span class="mono">visit()</span>, <span class="mono">goBack()</span>, <span class="mono">goForward()</span> functions dekho browser console me.</p>
+</section>
+
+<section id="lab" class="section">
+  <h2 class="title">STACK LAB — LIFO</h2>
+  <p style="color:var(--sub);font-size:14px;max-width:700px">A Stack is a Last-In-First-Out (LIFO) structure. The last element pushed is always the first one popped. Core operations: <b>push</b>, <b>pop</b>, <b>peek</b>, <b>isEmpty</b>, <b>size</b> — each O(1).</p>
+  <div class="arch">
+    <div class="box">BROWSER</div>
+    <div>│</div>
+    <div class="box">CURRENT PAGE</div>
+    <div>│</div>
+    <div class="row">
+      <div><div class="box">BACK ACTION</div><div>│</div><div class="box">BACK STACK</div></div>
+      <div><div class="box">FORWARD ACTION</div><div>│</div><div class="box">FORWARD STACK</div></div>
+    </div>
+  </div>
+  <h2 class="title" style="margin-top:26px">WHY STACK — NOT ARRAY OR LINKED LIST</h2>
+  <table>
+    <tr><th>Structure</th><th>Undo-last-visit (Back)</th><th>Insert/Remove at end</th><th>Memory overhead</th></tr>
+    <tr><td>Plain Array (index pointer)</td><td>Manual index math, error-prone</td><td>O(1) amortized, but shifting on clear</td><td>Low</td></tr>
+    <tr><td><b>Stack</b></td><td><b>Native — pop() gives exact last page</b></td><td><b>O(1) push/pop at top</b></td><td>Low</td></tr>
+    <tr><td>Linked List (manual)</td><td>Needs tail pointer management</td><td>O(1) at head/tail</td><td>Higher (node pointers)</td></tr>
+  </table>
+  <p style="color:var(--sub);font-size:13px;margin-top:8px">Stack ka LIFO semantics khud hi "last visited page" ko top pe rakhta hai — koi extra index tracking ya pointer management ki zaroorat nahi.</p>
+</section>
+
+<section id="stepmode" class="section">
+  <h2 class="title">STEP-BY-STEP WALKTHROUGH</h2>
+  <p style="color:var(--sub);font-size:13px;max-width:600px">Har step ek real operation trigger karta hai — Simulator tab me stacks live update honge.</p>
+  <div id="stepList"></div>
+  <div class="toolbar">
+    <button id="stepPrev">‹ Previous</button>
+    <button class="primary" id="stepNext">Next ›</button>
+    <button class="danger" id="stepReset">Restart</button>
+  </div>
+</section>
+
+<section id="ops" class="section">
+  <h2 class="title">OPERATIONS</h2>
+  <table>
+    <tr><th>Operation</th><th>Effect</th></tr>
+    <tr><td>VISIT</td><td>Current → Back Stack.push(); Forward Stack.clear()</td></tr>
+    <tr><td>BACK</td><td>Current → Forward Stack.push(); Back Stack.pop() → Current</td></tr>
+    <tr><td>FORWARD</td><td>Current → Back Stack.push(); Forward Stack.pop() → Current</td></tr>
+  </table>
+</section>
+
+<section id="complexity" class="section">
+  <h2 class="title">COMPLEXITY</h2>
+  <table>
+    <tr><th>Operation</th><th>Complexity</th></tr>
+    <tr><td>Visit</td><td>O(1)</td></tr><tr><td>Back</td><td>O(1)</td></tr>
+    <tr><td>Forward</td><td>O(1)</td></tr><tr><td>Push</td><td>O(1)</td></tr>
+    <tr><td>Pop</td><td>O(1)</td></tr><tr><td>Peek</td><td>O(1)</td></tr>
+    <tr><td>Space</td><td>O(n)</td></tr>
+  </table>
+  <p style="color:var(--sub);font-size:13px;margin-top:10px">Each stack operation acts only on the top element, so push/pop/peek run in constant time regardless of stack size.</p>
+</section>
+
+<section id="viva" class="section">
+  <h2 class="title">VIVA MODE</h2>
+  <div id="vivaList"></div>
+</section>
+
+<footer>
+  STACKFLOW · Browser History Simulator · DSA Minor Project · B.Tech CSE<br>
+  Rungta College of Engineering and Technology<br>
+  Shubham Kumar Singh · Adarsh Kumar Singh · Aman Kumar · Swapnil Gupta · Sachin Kumar
+</footer>
+</main>
+
+<div class="overlay" id="presentOverlay">
+  <div class="slide">
+    <div class="num" id="slideNum">01 / 10</div>
+    <h2 id="slideTitle"></h2>
+    <p id="slideBody"></p>
+    <div class="slide-nav">
+      <button id="slideExit">Exit</button>
+      <div style="display:flex;gap:8px">
+        <button id="slidePrev">‹ Prev</button>
+        <button id="slideNext">Next ›</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const sites = {
+  Google:{d:"google.local",h:"Google",b:"Search anything...  [ Search ]"},
+  YouTube:{d:"youtube.local",h:"YouTube",b:"Trending Videos ▶ Video 1 ▶ Video 2 ▶ Video 3"},
+  GitHub:{d:"github.local",h:"GitHub",b:"Repositories · Popular Projects · Code · Issues · Pull Requests"},
+  Wikipedia:{d:"wikipedia.local",h:"Wikipedia",b:"Article of the Day: Computer Science — Data Structures"},
+  "Stack Overflow":{d:"stackoverflow.local",h:"Stack Overflow",b:"Questions · Tags · Users"},
+  Netflix:{d:"netflix.local",h:"Netflix",b:"Continue Watching · Trending Now · New Releases"},
+  Amazon:{d:"amazon.local",h:"Amazon",b:"Today's Deals · Your Orders · Cart"},
+  Instagram:{d:"instagram.local",h:"Instagram",b:"Stories · Reels · Explore"}
+};
+const favicon={Google:"🔍",YouTube:"▶️",GitHub:"🐙",Wikipedia:"📖","Stack Overflow":"💬",Netflix:"🎬",Amazon:"📦",Instagram:"📸"};
+let current="Wikipedia", back=["Google","YouTube","GitHub"], fwd=[], op={}, opCount=0;
+
+function log(msg){
+  const l=document.getElementById('log');
+  const t=new Date().toLocaleTimeString();
+  l.innerHTML += `[${t}] ${msg}<br>`;
+  l.scrollTop=l.scrollHeight;
+}
+function render(){
+  document.getElementById('addr').textContent=sites[current].d;
+  const pv=document.getElementById('pageView');
+  pv.style.opacity=0;
+  setTimeout(()=>{
+    pv.innerHTML=`<span class="pill">${sites[current].d}</span><h3>${sites[current].h}</h3><p style="color:var(--sub);font-size:13px">${sites[current].b}</p>`;
+    pv.style.opacity=1;
+  },120);
+  document.getElementById('btnBack').disabled = back.length===0;
+  document.getElementById('btnFwd').disabled = fwd.length===0;
+
+  document.getElementById('backCount').textContent=String(back.length).padStart(2,'0');
+  document.getElementById('fwdCount').textContent=String(fwd.length).padStart(2,'0');
+  const bEl=document.getElementById('backStack'), fEl=document.getElementById('fwdStack');
+  bEl.innerHTML = back.length? back.map((p,i)=>`<div class="card back">#${String(i+1).padStart(2,'0')} ${p}<small>${sites[p].d}</small></div>`).join('') : '<div class="empty">EMPTY</div>';
+  fEl.innerHTML = fwd.length? fwd.map((p,i)=>`<div class="card fwd">#${String(i+1).padStart(2,'0')} ${p}<small>${sites[p].d}</small></div>`).join('') : '<div class="empty">EMPTY</div>';
+
+  const qn=document.getElementById('quicknav');
+  qn.innerHTML='';
+  Object.keys(sites).forEach(name=>{
+    const b=document.createElement('button');
+    b.textContent=name; b.onclick=()=>visit(name);
+    qn.appendChild(b);
+  });
+
+  renderMonitor();
+  renderTabs();
+}
+function renderTabs(){
+  const t=document.getElementById('tabbar');
+  const ghosts=['Mail','Docs'].map(g=>`<div class="tab ghost">${g}<span class="x">×</span></div>`).join('');
+  t.innerHTML = `<div class="tab active">${favicon[current]} ${current}<span class="x">×</span></div>${ghosts}<div class="tabnew">+</div>`;
+}
+function flyCard(text,cls,fromEl,toEl){
+  if(!fromEl||!toEl) return;
+  const fr=fromEl.getBoundingClientRect(), tr=toEl.getBoundingClientRect();
+  const f=document.createElement('div');
+  f.className='flyer '+cls; f.textContent=text;
+  f.style.left=fr.left+16+'px'; f.style.top=fr.top+16+'px';
+  document.body.appendChild(f);
+  requestAnimationFrame(()=>{
+    f.style.transform=`translate(${tr.left-fr.left}px,${tr.top-fr.top}px) scale(.6)`;
+    f.style.opacity='0.15';
+  });
+  setTimeout(()=>f.remove(),560);
+}
+function renderMonitor(){
+  document.getElementById('opCount').textContent=opCount;
+  const m=document.getElementById('monitor');
+  m.innerHTML = `<div><span class="k">Operation:</span> <span class="v">${op.name||'IDLE'}</span></div>
+  <div><span class="k">Action:</span> <span class="v">${op.action||'—'}</span></div>
+  <div><span class="k">Current Page:</span> <span class="v">${current}</span></div>
+  <div><span class="k">Back Stack Size:</span> <span class="v">${String(back.length).padStart(2,'0')}</span></div>
+  <div><span class="k">Forward Stack Size:</span> <span class="v">${String(fwd.length).padStart(2,'0')}</span></div>
+  <div><span class="k">Status:</span> <span class="status-ok">● SUCCESS</span></div>`;
+}
+function pipeline(steps,hitIdx){
+  const p=document.getElementById('pipeline');
+  p.innerHTML=steps.map((s,i)=>`<div class="pipe-step${i===hitIdx?' hit':''}">${s}</div>${i<steps.length-1?'<div class="arrow">↓</div>':''}`).join('');
+}
+function notice(){
+  const n=document.getElementById('notice');
+  n.style.display='block';
+  setTimeout(()=>n.style.display='none',1800);
+}
+function visit(page){
+  if(page===current) return;
+  flyCard(current,'back',document.getElementById('pageView'),document.getElementById('backStack'));
+  back.push(current);
+  const clearedFwd = fwd.length>0;
+  fwd=[];
+  current=page;
+  op={name:'VISIT → '+page,action:'PUSH + CLEAR FORWARD'};
+  opCount++;
+  pipeline(['CURRENT PAGE','PUSH','BACK STACK'],1);
+  log(`VISIT → ${page} | PUSH → Back Stack${clearedFwd?' | Forward Stack cleared':''}`);
+  if(clearedFwd) notice();
+  render();
+}
+function goBack(){
+  if(!back.length) return;
+  flyCard(current,'fwd',document.getElementById('pageView'),document.getElementById('fwdStack'));
+  fwd.push(current);
+  current=back.pop();
+  op={name:'BACK',action:'POP + PUSH'};
+  opCount++;
+  pipeline(['CURRENT PAGE','PUSH → FORWARD','BACK STACK → POP'],1);
+  log(`BACK → POP Back Stack | PUSH → Forward Stack | now: ${current}`);
+  render();
+}
+function goForward(){
+  if(!fwd.length) return;
+  flyCard(current,'back',document.getElementById('pageView'),document.getElementById('backStack'));
+  back.push(current);
+  current=fwd.pop();
+  op={name:'FORWARD',action:'POP + PUSH'};
+  opCount++;
+  pipeline(['CURRENT PAGE','PUSH → BACK','FORWARD STACK → POP'],1);
+  log(`FORWARD → POP Forward Stack | PUSH → Back Stack | now: ${current}`);
+  render();
+}
+document.getElementById('btnBack').onclick=goBack;
+document.getElementById('btnFwd').onclick=goForward;
+document.getElementById('btnRefresh').onclick=()=>{log(`REFRESH → ${current}`);render();};
+document.getElementById('resetBtn').onclick=()=>{
+  current="Wikipedia"; back=["Google","YouTube","GitHub"]; fwd=[]; op={}; opCount=0;
+  document.getElementById('log').innerHTML='';
+  log('RESET → demo state restored');
+  render();
+};
+document.getElementById('edgeTest').onclick=()=>{
+  const backEmpty=back.length===0, fwdEmpty=fwd.length===0;
+  pipeline(['CHECK isEmpty()','BACK: '+backEmpty,'FORWARD: '+fwdEmpty],1);
+  op={name:'EDGE CASE TEST',action:'isEmpty() check'};
+  renderMonitor();
+  log(`EDGE CASE → Back.isEmpty()=${backEmpty} | Forward.isEmpty()=${fwdEmpty} → if true, nav button stays disabled (guard clause prevents pop on empty stack)`);
+};
+async function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+document.getElementById('runDemo').onclick=async function(){
+  this.disabled=true;
+  document.getElementById('resetBtn').click();
+  await sleep(500);
+  for(const p of ["Google","YouTube","GitHub","Wikipedia"]){ visit(p); await sleep(750); }
+  goBack(); await sleep(750);
+  goBack(); await sleep(750);
+  goForward(); await sleep(750);
+  visit("Amazon");
+  this.disabled=false;
+};
+
+const nav=document.getElementById('nav');
+nav.querySelectorAll('button').forEach(b=>{
+  b.onclick=()=>{
+    nav.querySelectorAll('button').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+    document.getElementById(b.dataset.s).classList.add('active');
+  };
+});
+
+const vivaQA=[
+["Why is Stack used in browser history?","Because navigation follows LIFO order — the most recently visited page is the first one you return to."],
+["What is LIFO?","Last In, First Out — the last element added is the first one removed."],
+["Why are two stacks required?","One tracks Back history, the other tracks Forward history, so both directions can be reconstructed independently."],
+["What happens during Back?","Current page is pushed to Forward Stack; top of Back Stack is popped and becomes the current page."],
+["What happens during Forward?","Current page is pushed to Back Stack; top of Forward Stack is popped and becomes the current page."],
+["What happens to Forward Stack after a new visit?","It is cleared, since the old forward path is no longer valid."],
+["What is the complexity of Back?","O(1) — a single push and pop at the top of each stack."],
+["What is the complexity of Forward?","O(1) — same reasoning as Back."],
+["What happens if Back Stack is empty?","The Back button is disabled; there is no prior page to return to."],
+["What happens if Forward Stack is empty?","The Forward button is disabled; there is no future page to advance to."],
+["Can Queue be naturally used for browser Back/Forward?","No — a Queue is FIFO, which would return the oldest page first instead of the most recent one."],
+["What is the role of PUSH and POP?","PUSH adds the current page onto a stack when navigating away; POP retrieves the most recent page when navigating back or forward."]
+];
+document.getElementById('vivaList').innerHTML = vivaQA.map((qa,i)=>`
+<details class="viva-item"><summary>${i+1}. ${qa[0]}</summary><p>${qa[1]}</p></details>`).join('');
+
+const steps=[
+ {label:'Visit Google',fn:()=>visit('Google')},
+ {label:'Visit YouTube',fn:()=>visit('YouTube')},
+ {label:'Visit GitHub',fn:()=>visit('GitHub')},
+ {label:'Visit Wikipedia',fn:()=>visit('Wikipedia')},
+ {label:'Press Back',fn:()=>goBack()},
+ {label:'Press Back again',fn:()=>goBack()},
+ {label:'Press Forward',fn:()=>goForward()},
+];
+let stepIdx=0;
+let stepStates=[];
+function snapshot(){ return {current, back:[...back], fwd:[...fwd], opCount}; }
+function restore(s){ current=s.current; back=[...s.back]; fwd=[...s.fwd]; opCount=s.opCount; render(); }
+function renderSteps(){
+  document.getElementById('stepList').innerHTML = steps.map((s,i)=>
+    `<div class="step-item${i===stepIdx?' current':''}">Step ${i+1} — ${s.label}</div>`).join('');
+}
+document.getElementById('stepNext').onclick=()=>{
+  if(stepIdx>=steps.length) return;
+  if(!stepStates[stepIdx]) stepStates[stepIdx]=snapshot();
+  steps[stepIdx].fn();
+  stepIdx++;
+  stepStates[stepIdx]=snapshot();
+  renderSteps();
+};
+document.getElementById('stepPrev').onclick=()=>{
+  if(stepIdx<=0) return;
+  stepIdx--;
+  restore(stepStates[stepIdx]);
+  renderSteps();
+};
+document.getElementById('stepReset').onclick=()=>{
+  document.getElementById('resetBtn').click();
+  stepIdx=0; stepStates=[snapshot()]; renderSteps();
+};
+renderSteps();
+
+const slides=[
+ ['PROBLEM','Browser Back/Forward navigation needs to remember visited pages in order and let the user retrace them.'],
+ ['WHY STACK','A Stack naturally models "undo the last action" — exactly what Back does.'],
+ ['LIFO','Last In, First Out: the most recently visited page is the first one you go back to.'],
+ ['TWO STACK ARCHITECTURE','Back Stack holds history behind you; Forward Stack holds history you stepped back from.'],
+ ['VISIT OPERATION','Current page → push to Back Stack. Forward Stack is cleared — the old forward path is invalid.'],
+ ['BACK OPERATION','Current page → push to Forward Stack. Pop Back Stack → becomes current page.'],
+ ['FORWARD OPERATION','Current page → push to Back Stack. Pop Forward Stack → becomes current page.'],
+ ['LIVE DEMO','Run Demo in the Simulator tab to watch pushes and pops happen in real time.'],
+ ['COMPLEXITY','Every operation touches only the top of a stack, so all core operations run in O(1) time, O(n) space.'],
+ ['CONCLUSION','Browser history is a real-world use of the Stack data structure — VISIT is PUSH, BACK/FORWARD are POP+PUSH.'],
+];
+let slideIdx=0;
+function renderSlide(){
+  document.getElementById('slideNum').textContent=String(slideIdx+1).padStart(2,'0')+' / '+slides.length;
+  document.getElementById('slideTitle').textContent=slides[slideIdx][0];
+  document.getElementById('slideBody').textContent=slides[slideIdx][1];
+}
+document.getElementById('presentBtn').onclick=()=>{ slideIdx=0; renderSlide(); document.getElementById('presentOverlay').classList.add('active'); };
+document.getElementById('slideExit').onclick=()=>document.getElementById('presentOverlay').classList.remove('active');
+document.getElementById('slideNext').onclick=()=>{ slideIdx=Math.min(slideIdx+1,slides.length-1); renderSlide(); };
+document.getElementById('slidePrev').onclick=()=>{ slideIdx=Math.max(slideIdx-1,0); renderSlide(); };
+
+render();
+log('SYSTEM READY | initial state: Google → YouTube → GitHub → Wikipedia');
+</script>
+</body>
+</html>
